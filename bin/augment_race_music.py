@@ -151,13 +151,13 @@ def parse_args():
     """
     my_parser = argparse.ArgumentParser(description="Builds augmented music of horses")
     my_parser.add_argument(
-        "--input_glob",
+        "--input",
         "-i",
         default="data/raw/2016-2018_races/historic/*.json",
         help="Input JSON files glob pattern",
     )
     my_parser.add_argument(
-        "--output_folder",
+        "--output",
         "-o",
         default="data/interim/augmented_musics.csv",
         help="Path of the output directory, in which the result file augmented_musics.csv will be created",
@@ -168,9 +168,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    get_augmented_music_df(preprocess_df(glob_to_df(args.input_glob))).to_csv(
-        args.output_folder
-    )
+    get_augmented_music_df(preprocess_df(glob_to_df(args.input))).to_csv(args.output)
 
 
 if __name__ == "__main__":
