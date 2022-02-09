@@ -6,6 +6,12 @@ import glob
 import json
 import utils.flatten as flt
 import argparse
+from pathlib import Path
+import os
+
+"""
+Create a CSV file with the augmented music at the (chronological) end of the input files.
+"""
 
 
 def glob_to_df(files_paths_glob):
@@ -17,9 +23,14 @@ def glob_to_df(files_paths_glob):
     Returns:
         DataFrame -- Historic performances of horses
     """
+    if files_paths_glob == None:
+        return pd.DataFrame()
     files_paths = glob.glob(files_paths_glob)
     print(f"Data extraction from {len(files_paths)} JSON files...")
-    pbar = tqdm(total=len(files_paths))
+    pbar = tqdm(
+        total=len(files_paths),
+        desc="Computing augmented music of each horse based on archive files ...",
+    )
     performances = []
     for file_path in files_paths:
         with open(file_path, "r", encoding="utf-8") as file:
@@ -68,9 +79,18 @@ def preprocess_df(df):
     print(
         f"Preprocessing the horse performances dataframe containing {len(df)} rows..."
     )
-    df["date"] = pd.to_datetime(df["date"], unit="ms")
-    df["results.position"] = df["results.position"].apply(clean_results_position)
-    df["cleaned_music"] = df["musique"].apply(clean_music_to_list)
+    # try:
+    # df["date"] = pd.to_datetime(df["date"], unit="ms")   Otherwise not seriazable
+    # except KeyError:
+    # print("Cannot find date in augmented music df")
+    try:
+        df["results.position"] = df["results.position"].apply(clean_results_position)
+    except KeyError:
+        print("Cannot find result position in augmented music df")
+    try:
+        df["cleaned_music"] = df["musique"].apply(clean_music_to_list)
+    except KeyError:
+        print("Cannot find musique  in augmented music df")
     return df
 
 
@@ -137,10 +157,16 @@ def get_augmented_music_df(df):
         df {DataFrame} -- Horses performances
 
     Returns:
-        DataFrame -- Output of the program : DataFrame with
+       Series -- Output of the program : id, augmented music
     """
     print("Retrieving augmented music for each horse...")
-    return df.groupby(["horse.genyId"]).apply(get_music)
+    try:
+        series = df.groupby(["horse.genyId"]).apply(get_music)
+        series = series.reindex(series.index.values.astype(int))
+    except KeyError:
+        print("Cannot find horse.genyId, initializing empty series")
+        series = pd.Series(dtype=object)
+    return series
 
 
 def parse_args():
@@ -153,22 +179,110 @@ def parse_args():
     my_parser.add_argument(
         "--input",
         "-i",
-        default="data/raw/2016-2018_races/historic/*.json",
-        help="Input JSON files glob pattern",
+        # default="data/raw/2016-2018_races/historic/*.json",
+        required=True,
+        help="Input JSON files glob pattern. Files to which the computed and actualized augmented music will be added to",
     )
     my_parser.add_argument(
         "--output",
         "-o",
-        default="data/interim/augmented_musics.csv",
-        help="Path of the output directory, in which the result file augmented_musics.csv will be created",
+        # default="data/interim/augmented_musics.csv",
+        required=True,
+        help="Path of the output directory, in which the modified input files will be saved to",
+    )
+    my_parser.add_argument(
+        "--archive",
+        "-a",
+        help="Path of the files containing historic data to augment the music. Archive files must be older than inputs.",
     )
     args = my_parser.parse_args()
     return args
 
 
+def update_inputs(historic, input, output):
+    """Updates the input JSON files based on the augmented music computed from the archive files,
+    all the while permanentyl updating augmented music database.
+
+    Arguments:
+        historic_df {Series} -- Contains the augmented music of each horse, based on the data of the archive files
+        input {string} -- glob string of the files to which the augmented music will be added to. Given by the arg parser
+        output {string} -- glob string of the output directory to which the updated input files will be added to. Given by the arg parser
+    """
+    input_paths = glob.glob(input)
+    print(f"Augmenting {len(input_paths)} files ...")
+    pbar = tqdm(
+        total=len(input_paths),
+        desc="Updating input files, saving them to output directory ...",
+    )
+    counter_no_id = 0
+    # iteration on every input file
+    for input_path in input_paths:
+        outfile_path = os.path.join(output, Path(input_path).name)
+
+        # read input file, write output file
+        with open(input_path, "r", encoding="utf-8") as input_file, open(
+            outfile_path, "w+", encoding="utf-8"
+        ) as output_file:
+            # copy initial data
+            data = json.load(input_file)
+            json.dump(data, output_file)
+            pbar.update()
+            # get race info for updating augmented music db
+            try:
+                priceFirst = data["price"]["first"]
+            except:
+                priceFirst = np.NaN
+            date = data["raceScheduledStartEpochMs"]
+
+            partants = []
+            for horse in data["partants"]:
+                try:
+                    id = horse["horse"]["genyId"]
+                except:
+                    counter_no_id += 1
+                    partants.append(horse)
+                    continue  # si un cheval n'a pas d'id on passe au suivant, l'output pour ce cheval sera celui de l'input
+
+                dai = False
+                # update augmented music databases with this race's result
+                try:
+                    result = horse["results"]["position"]
+                except:
+                    dai = True
+                performance = [result, priceFirst, date]
+                # if augmented music exists, cache it and update it
+                try:
+                    augmented_music = historic[id]
+                    if not dai:
+                        historic[id] = historic[id].append(performance)
+                    augmented_music = (
+                        augmented_music.tolist()
+                    )  # not JSON serializable otherwise
+                except:
+                    # Si le cheval est absent de la bdd des musiques augmentées
+                    augmented_music = [
+                        [float(clean_results_position(result)), np.NaN, np.NaN]
+                        for result in clean_music_to_list(horse["musique"])
+                    ]
+                horse["augmented_music"] = str(
+                    list(augmented_music)
+                )  # otherwise not seriazable
+                partants.append(horse)
+            json.dump({"partants": partants}, output_file)
+    pbar.close()
+    print(f"\n{counter_no_id} horses had no genyId, they were skipped")
+
+
+def write_outfile(input_path, augmented_musics_dic, output_path):
+    outfile_path = 0
+    with open(input_path, "r", encoding="utf-8") as input_file:
+        json.dump()
+
+
 def main():
     args = parse_args()
-    get_augmented_music_df(preprocess_df(glob_to_df(args.input))).to_csv(args.output)
+    historic_df = get_augmented_music_df(preprocess_df(glob_to_df(args.archive)))
+    update_inputs(historic_df, args.input, args.output)
 
 
 if __name__ == "__main__":
