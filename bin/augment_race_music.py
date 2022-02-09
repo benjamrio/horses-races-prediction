@@ -259,7 +259,7 @@ def update_inputs(historic, input, output):
                         augmented_music.tolist()
                     )  # not JSON serializable otherwise
                 except:
-                    # Si le cheval est absent de la bdd des musiques augmentées
+                    # horse absent from agumented music database
                     augmented_music = [
                         [float(clean_results_position(result)), np.NaN, np.NaN]
                         for result in clean_music_to_list(horse["musique"])
@@ -268,7 +268,7 @@ def update_inputs(historic, input, output):
                 partants.append(horse)
             json.dump({"partants": partants}, output_file)
     pbar.close()
-    print(f"\n{counter_no_id} horses had no genyId, they were skipped")
+    print(f"\n{counter_no_id} horses had no genyId, they were skipped in the process")
 
 
 def write_outfile(input_path, augmented_musics_dic, output_path):
