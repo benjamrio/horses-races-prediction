@@ -268,7 +268,7 @@ def update_inputs(historic, input, output):
                 partants.append(horse)
             json.dump({"partants": partants}, output_file)
     pbar.close()
-    print(f"\n{counter_no_id} horses had no genyId, they were skipped")
+    print(f"\n{counter_no_id} horses had no genyId, they were skipped in the process")
 
 
 def write_outfile(input_path, augmented_musics_dic, output_path):
