@@ -1,4 +1,3 @@
-./data
-./env
+data
+env
 notes/private
-*/__pycache__

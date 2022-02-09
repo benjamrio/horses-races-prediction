@@ -264,9 +264,7 @@ def update_inputs(historic, input, output):
                         [float(clean_results_position(result)), np.NaN, np.NaN]
                         for result in clean_music_to_list(horse["musique"])
                     ]
-                horse["augmented_music"] = str(
-                    list(augmented_music)
-                )  # otherwise not seriazable
+                horse["augmented_music"] = str(list(augmented_music))
                 partants.append(horse)
             json.dump({"partants": partants}, output_file)
     pbar.close()
