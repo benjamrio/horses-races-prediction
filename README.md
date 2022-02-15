@@ -10,7 +10,7 @@ Clone the project.
 From the root folder of the project, with an interpreter running python 3.9. Simply run :
 ```
 $ pip install -r requirements.txt
-$ /bin/augment_race_music --input <input files glob pattern> --archive <archive files glob pattern> --output <output directory> --archive <archive files glob pattern>
+$ python ./bin/augment_race_music --input <input files glob pattern> --archive <archive files glob pattern> --output <output directory> --archive <archive files glob pattern>
 ```
 `input` are the files in which augmented music will be added, once copied in the `output` directory, using `archive` files to compute an *augmented music*
 It is recommended to use a virtual environment for the project, as we will be using special packages for the Deep Learning models.
