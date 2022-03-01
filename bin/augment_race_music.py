@@ -8,9 +8,10 @@ import utils.flatten as flt
 import argparse
 from pathlib import Path
 import os
+import math
 
 """
-Create a CSV file with the augmented music at the (chronological) end of the input files.
+Augment JSON input files with augmented music at the (chronological) end of the input files.
 """
 
 
@@ -84,7 +85,8 @@ def preprocess_df(df):
     # except KeyError:
     # print("Cannot find date in augmented music df")
     try:
-        df["results.position"] = df["results.position"].apply(clean_results_position)
+        df["results.position"] = df["results.position"].apply(
+            clean_results_position)
     except KeyError:
         print("Cannot find result position in augmented music df")
     try:
@@ -175,7 +177,8 @@ def parse_args():
     Returns:
         Namespace -- arguments
     """
-    my_parser = argparse.ArgumentParser(description="Builds augmented music of horses")
+    my_parser = argparse.ArgumentParser(
+        description="Builds augmented music of horses")
     my_parser.add_argument(
         "--input",
         "-i",
@@ -225,7 +228,6 @@ def update_inputs(historic, input, output):
         ) as output_file:
             # copy initial data
             data = json.load(input_file)
-            json.dump(data, output_file)
             pbar.update()
             # get race info for updating augmented music db
             try:
@@ -241,7 +243,7 @@ def update_inputs(historic, input, output):
                 except:
                     counter_no_id += 1
                     partants.append(horse)
-                    continue  # si un cheval n'a pas d'id on passe au suivant, l'output pour ce cheval sera celui de l'input
+                    continue  # If a horse has no id we switch to the next one
 
                 dai = False
                 # update augmented music databases with this race's result
@@ -249,24 +251,37 @@ def update_inputs(historic, input, output):
                     result = horse["results"]["position"]
                 except:
                     dai = True
-                performance = [result, priceFirst, date]
-                # if augmented music exists, cache it and update it
-                try:
-                    augmented_music = historic[id]
-                    if not dai:
+                    result = None
+
+                performance = {"position": result,
+                               "priceFirst": priceFirst, "date": date, "dai": dai}
+                # Si la musique augmentée existe déjà dans la bdd historic
+                # on récupère les perforamnces passées
+                # et on ajoute la performance d'aujourd'hui
+                augmented_music = []
+                if id in historic:
+
+                    for histo in historic[id]:
+                        position = int(histo[0])
+                        item = {"position": position}
+                        if math.isnan(position):
+                            raise Exception('no position')
+
+                        if not math.isnan(histo[1]):
+                            item['priceFirst'] = histo[1]
+
+                        if not math.isnan(histo[2]):
+                            item['date'] = histo[2]
+
+                        augmented_music.append(item)
                         historic[id] = historic[id].append(performance)
-                    augmented_music = (
-                        augmented_music.tolist()
-                    )  # not JSON serializable otherwise
-                except:
-                    # horse absent from agumented music database
-                    augmented_music = [
-                        [float(clean_results_position(result)), np.NaN, np.NaN]
-                        for result in clean_music_to_list(horse["musique"])
-                    ]
-                horse["augmented_music"] = str(list(augmented_music))
+
+                else:
+                    historic[id] = [performance]
+                horse["augmentedMusic"] = list(augmented_music)
                 partants.append(horse)
-            json.dump({"partants": partants}, output_file)
+            data["partants"] = partants
+            json.dump(data, output_file)
     pbar.close()
     print(f"\n{counter_no_id} horses had no genyId, they were skipped in the process")
 
@@ -279,7 +294,8 @@ def write_outfile(input_path, augmented_musics_dic, output_path):
 
 def main():
     args = parse_args()
-    historic_df = get_augmented_music_df(preprocess_df(glob_to_df(args.archive)))
+    historic_df = get_augmented_music_df(
+        preprocess_df(glob_to_df(args.archive)))
     update_inputs(historic_df, args.input, args.output)
 
 
