@@ -204,7 +204,7 @@ def parse_args():
 
 def update_inputs(historic, input, output):
     """Updates the input JSON files based on the augmented music computed from the archive files,
-    all the while permanentyl updating augmented music database.
+    all the while constantly updating the augmented music database.
 
     Arguments:
         historic_df {Series} -- Contains the augmented music of each horse, based on the data of the archive files
@@ -218,6 +218,7 @@ def update_inputs(historic, input, output):
         desc="Updating input files, saving them to output directory ...",
     )
     counter_no_id = 0
+
     # iteration on every input file
     for input_path in input_paths:
         outfile_path = os.path.join(output, Path(input_path).name)
@@ -255,9 +256,9 @@ def update_inputs(historic, input, output):
 
                 performance = {"position": result,
                                "priceFirst": priceFirst, "date": date, "dai": dai}
-                # Si la musique augmentée existe déjà dans la bdd historic
-                # on récupère les perforamnces passées
-                # et on ajoute la performance d'aujourd'hui
+                # If augmented music exits in historic
+                # retrieve and add it to the input
+                # update historic with the new performance
                 augmented_music = []
                 if id in historic:
 
